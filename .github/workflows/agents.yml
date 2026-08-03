@@ -51,6 +51,11 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
     runs-on: ubuntu-latest
+    # secrets cannot be read from a step-level `if`, so the presence of the
+    # dispatch token is captured here, where env may reference secrets, and the
+    # step below tests this instead.
+    env:
+      HAS_DISPATCH_PAT: ${{ secrets.DISPATCH_PAT != '' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -135,7 +140,7 @@ jobs:
       # sync. Skipped without DISPATCH_PAT: cross-repository dispatch cannot use
       # GITHUB_TOKEN, which is scoped to this repository.
       - name: Tell the catalog about the new tag
-        if: ${{ steps.check.outputs.exists == 'false' && secrets.DISPATCH_PAT != '' }}
+        if: ${{ steps.check.outputs.exists == 'false' && env.HAS_DISPATCH_PAT == 'true' }}
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.DISPATCH_PAT }}

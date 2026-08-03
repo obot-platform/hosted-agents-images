@@ -31,7 +31,7 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/mnt" -w /mnt koalaman/shellcheck:v0.10.0 \
             --exclude=SC1091 \
-            lib/obot-agent.sh */entrypoint.sh
+            lib/obot-agent.sh ./*/entrypoint.sh
 
       - name: Install yq
         uses: mikefarah/yq@v4
