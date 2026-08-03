@@ -20,30 +20,17 @@ port="$(obot::listen_port)"
 state="$(obot::state_dir)"
 mkdir -p "$state/artifacts"
 
-# The agent code. A harness is a runtime, not an agent, so it gets the agent
-# one of two ways:
+# The agent code. A harness is a runtime, not an agent: the template says which
+# agent to run by pointing at a repository, and that repository's root is the
+# agents directory ADK loads.
 #
-#   * a repository the template points at, cloned at start-up -- how the generic
-#     harness runs a bring-your-own-agent, and always preferred when set so a
-#     user can override the packaged agent with a fork; or
-#   * an agent baked into the image at OBOT_AGENT_DIR -- how a derived image
-#     ships a specific agent, so it boots with no network and is scanned and
-#     signed as one artifact.
-#
-# The generic harness sets neither a repository default nor OBOT_AGENT_DIR, so
-# it still requires a gitRepo and behaves exactly as before. The image bundles
-# no agent of its own as a fallback: it did once, and the two copies drifted the
-# moment the configuration format changed -- the copy nobody ran silently kept
-# working while the real one broke. A baked-in agent is a whole image built for
-# it, not a spare copy sitting beside the runtime.
-if [ -n "$(obot::config '.source.url // empty')" ]; then
-  agents_dir="$(obot::clone_source)"
-elif [ -n "${OBOT_AGENT_DIR:-}" ] && [ -d "${OBOT_AGENT_DIR}" ]; then
-  agents_dir="$OBOT_AGENT_DIR"
-  obot::log "no gitRepo configured; running the agent baked into this image at $agents_dir"
-else
-  obot::fail "this agent has no gitRepo and none is baked into this image. The ADK harness runs the agent in the repository its template points at; set one on the template, or use an image that packages an agent."
-fi
+# The image deliberately bundles no agent. It did once, as a fallback, and the
+# two copies drifted the moment the configuration format changed -- the copy
+# nobody was running silently kept working while the real one broke.
+[ -n "$(obot::config '.source.url // empty')" ] ||
+  obot::fail "this agent has no gitRepo. The ADK harness runs the agent in the repository its template points at; set one on the template."
+
+agents_dir="$(obot::clone_source)"
 obot::log "loading agents from $agents_dir"
 
 # Decline ADK's telemetry on the agent's behalf. The UI asks the first time it
