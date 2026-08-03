@@ -1,0 +1,90 @@
+name: Check for upstream releases
+
+# The agent CLIs release often. This checks each package's registry daily and
+# opens a pull request raising its version in images.yaml when a newer release
+# appears. The pull request goes through the same build, scan and smoke test as
+# any change, and merging it publishes the new image and updates the catalog.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Look for newer releases
+        id: check
+        run: |
+          # For each image, compare the manifest version against the registry's
+          # latest. Only a strictly newer version is taken, so a yanked release
+          # never moves the pin backwards.
+          updates=$(
+            yq eval -o=json '.images' images.yaml | jq -c '.[]' | while read -r image; do
+              name=$(jq -r .name <<<"$image")
+              registry=$(jq -r .registry <<<"$image")
+              package=$(jq -r .package <<<"$image")
+              current=$(jq -r .version <<<"$image")
+
+              case "$registry" in
+                npm)  latest=$(curl -fsSL "https://registry.npmjs.org/${package}/latest" | jq -r .version) ;;
+                pypi) latest=$(curl -fsSL "https://pypi.org/pypi/${package}/json" | jq -r '.info.version') ;;
+                *)    echo "unknown registry $registry for $name" >&2; continue ;;
+              esac
+
+              [ -n "$latest" ] && [ "$latest" != "null" ] || { echo "no latest for $name" >&2; continue; }
+
+              # sort -V puts the newer version last; take the update only when
+              # that is the registry's, not the one we already have.
+              newest=$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -1)
+              if [ "$newest" = "$latest" ] && [ "$latest" != "$current" ]; then
+                jq -cn --arg n "$name" --arg p "$package" --arg c "$current" --arg l "$latest" \
+                  '{name:$n, package:$p, from:$c, to:$l}'
+              fi
+            done | jq -cs .
+          )
+          echo "updates=$updates" >> "$GITHUB_OUTPUT"
+          echo "$updates" | jq .
+
+      - name: Apply updates
+        id: apply
+        if: ${{ steps.check.outputs.updates != '[]' }}
+        run: |
+          # Rewritten as text, not a yq round-trip, so the diff is only the
+          # versions that changed rather than the whole reformatted file. A new
+          # release is a new package, so any packaging suffix is cleared.
+          echo '${{ steps.check.outputs.updates }}' | jq -c '.[]' | while read -r u; do
+            name=$(jq -r .name <<<"$u"); to=$(jq -r .to <<<"$u")
+            python3 - "$name" "$to" <<'PY'
+          import re, sys
+          name, to = sys.argv[1], sys.argv[2]
+          text = open("images.yaml").read()
+          block = re.compile(rf"(- name: {re.escape(name)}\n(?:.*\n)*?    version: )\S+(\n)(    packaging: \S+\n)?")
+          text = block.sub(rf"\g<1>{to}\g<2>", text, count=1)
+          open("images.yaml", "w").write(text)
+          PY
+          done
+          body=$(echo '${{ steps.check.outputs.updates }}' | jq -r '.[] | "- \(.package): \(.from) → \(.to)"')
+          {
+            echo "body<<EOF"
+            echo "A newer release is available for:"
+            echo ""
+            echo "$body"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open a pull request
+        if: ${{ steps.check.outputs.updates != '[]' }}
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: check-upstream/bumps
+          title: "chore: update agent package versions"
+          body: ${{ steps.apply.outputs.body }}
+          commit-message: "chore: update agent package versions"

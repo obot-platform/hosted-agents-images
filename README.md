@@ -118,19 +118,22 @@ state.
   git credentials for skill repositories but they are not yet offered to an
   agent's own repository.
 
-## Releasing
+## Versioning and releasing
 
-Tag the commit and push the tag:
+Each image is tagged with the version of the tool it packages, declared in
+[`images.yaml`](images.yaml) -- `claude-code:2.1.220`, `codex:0.146.0`,
+`adk:2.6.1`. There is no repo-wide release tag: one package moving publishes one
+image, and the others are untouched.
 
-```sh
-git tag v0.1.0 && git push origin v0.1.0
-```
+`images.yaml` is the only place a version lives. The Dockerfiles read it as a
+build argument, so the pin and the published tag cannot disagree. To rebuild the
+same upstream version -- an entrypoint change, a base-image bump -- set
+`packaging: N` on that image; the tag becomes `version-N`, which is what lets it
+publish when the upstream version has not moved.
 
-That builds and signs all three images, moves `:latest`, scans them with Trivy
-into GitHub code scanning, and asks the catalog to open a pull request pointing
-its harnesses at the new tag. A `-rc` tag publishes without moving `:latest`.
-
-The catalog notification uses `DISPATCH_PAT`, the same organisation secret
-mcp-images uses for the same purpose: cross-repository dispatch cannot use
-`GITHUB_TOKEN`, which is scoped to the repository it runs in. Without the secret
-the release still publishes and the step is skipped -- nothing fails.
+A daily job (`check-upstream.yml`) compares each package against its registry
+and opens a pull request raising the version when a newer release appears.
+Merging it, or any change that moves a tag, builds and signs that image, scans
+it, and asks the catalog to open a pull request pointing its harness at the new
+tag. Dependabot keeps the base-image digests, the secondary Python pins and the
+workflow actions current.

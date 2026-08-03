@@ -1,0 +1,25 @@
+# The version of each agent image, and the single source of truth for it.
+#
+# A daily job checks each package's upstream registry and opens a pull request
+# raising `version` here when a newer release appears. Merging it builds and
+# publishes that one image and asks the catalog to point at the new tag.
+#
+# The published tag is `version`, or `version-packaging` when `packaging` is
+# set. Raise `packaging` to rebuild the same upstream version -- an entrypoint
+# change, a base-image bump, a dependency fix -- since the tag has to move for
+# anything to ship, and the upstream version has not.
+images:
+  - name: claude-code
+    registry: npm
+    package: "@anthropic-ai/claude-code"
+    version: 2.1.220
+
+  - name: codex
+    registry: npm
+    package: "@openai/codex"
+    version: 0.146.0
+
+  - name: adk
+    registry: pypi
+    package: google-adk
+    version: 2.6.1

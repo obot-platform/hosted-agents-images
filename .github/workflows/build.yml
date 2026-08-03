@@ -33,11 +33,21 @@ jobs:
             --exclude=SC1091 \
             lib/obot-agent.sh */entrypoint.sh
 
+      - name: Install yq
+        uses: mikefarah/yq@v4
+
       - name: Build images
+        # The version comes from images.yaml, the same source the publish
+        # workflow uses, so this check builds exactly what a merge would publish
+        # -- not whatever default the Dockerfile happened to carry.
         run: |
-          for dockerfile in Dockerfile.*; do
-            name="${dockerfile#Dockerfile.}"
-            docker build --pull --file "$dockerfile" --tag "$name:pr-check" .
+          yq -o=json '.images' images.yaml | jq -c '.[]' | while read -r image; do
+            name=$(jq -r .name <<<"$image")
+            version=$(jq -r .version <<<"$image")
+            docker build --pull \
+              --file "Dockerfile.$name" \
+              --build-arg "AGENT_VERSION=$version" \
+              --tag "$name:pr-check" .
           done
 
       # Each image has to boot from a configuration it has never seen before.

@@ -1,7 +1,3 @@
-# Pinned exactly: two builds of the same commit must produce the same image,
-# or a release cannot be reasoned about after the fact.
-#
-# The mcp extra rather than a bare mcp pin, because ADK declares the range it
-# works with and installing mcp directly picked up a major version outside it.
-google-adk[mcp]==2.6.1
+# google-adk is installed from images.yaml via a build argument, so it is not
+# listed here. These are the pins dependabot keeps current.
 litellm==1.95.0
