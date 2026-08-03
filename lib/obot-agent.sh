@@ -245,7 +245,9 @@ obot::link_skills() {
   done
 
   while IFS=$'\t' read -r name path; do
-    [ -n "$path" ] && [ -d "$path" ] || continue
+    if [ -z "$path" ] || [ ! -d "$path" ]; then
+      continue
+    fi
     ln -sfn "$path" "$target/$name"
     count=$((count + 1))
   done < <(obot::config '.skills[]? | [.name, .path] | @tsv')
