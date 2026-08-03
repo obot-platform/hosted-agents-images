@@ -80,19 +80,24 @@ jobs:
 
       # Tell the catalog which tag to point its harnesses at, so a release does
       # not depend on someone remembering to edit YAML in another repository.
-      - name: Notify the catalog of the new tag
-        if: ${{ github.ref_type == 'tag' && !contains(github.ref_name, '-rc') }}
-        env:
-          GH_TOKEN: ${{ secrets.CATALOG_DISPATCH_TOKEN }}
-        run: |
-          if [ -z "${GH_TOKEN}" ]; then
-            echo "No CATALOG_DISPATCH_TOKEN configured; skipping catalog notification." >&2
-            exit 0
-          fi
-          gh api repos/${{ github.repository_owner }}/hosted-agents-catalog/dispatches \
-            --field event_type=update-image-tag \
-            --field "client_payload[image_name]=ghcr.io/${{ github.repository }}/${{ matrix.image-identifier }}" \
-            --field "client_payload[new_tag]=${{ github.ref_name }}"
+      # The catalog turns this into a pull request rather than a push.
+      #
+      # DISPATCH_PAT is the same organisation secret mcp-images uses for the
+      # same purpose. Cross-repository dispatch cannot use GITHUB_TOKEN, which
+      # is scoped to this repository. Without the secret the release still
+      # publishes and this step is skipped.
+      - name: Trigger catalog update
+        if: ${{ github.ref_type == 'tag' && !contains(github.ref_name, '-rc') && secrets.DISPATCH_PAT != '' }}
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.DISPATCH_PAT }}
+          repository: ${{ github.repository_owner }}/hosted-agents-catalog
+          event-type: update-image-tag
+          client-payload: |
+            {
+              "image_name": "ghcr.io/${{ github.repository }}/${{ matrix.image-identifier }}",
+              "new_tag": "${{ github.ref_name }}"
+            }
 
   trivy-scan:
     permissions:

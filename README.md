@@ -130,6 +130,7 @@ That builds and signs all three images, moves `:latest`, scans them with Trivy
 into GitHub code scanning, and asks the catalog to open a pull request pointing
 its harnesses at the new tag. A `-rc` tag publishes without moving `:latest`.
 
-The catalog notification needs a `CATALOG_DISPATCH_TOKEN` secret with
-`contents: write` on the catalog repository; without it the release still
-publishes and the step is skipped with a message.
+The catalog notification uses `DISPATCH_PAT`, the same organisation secret
+mcp-images uses for the same purpose: cross-repository dispatch cannot use
+`GITHUB_TOKEN`, which is scoped to the repository it runs in. Without the secret
+the release still publishes and the step is skipped -- nothing fails.
