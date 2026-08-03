@@ -1,8 +1,12 @@
 # Entries here must say why the finding does not apply, with a reference.
 # An unexplained suppression is indistinguishable from an unfixed vulnerability.
 
-# brace-expansion, bundled inside npm itself. npm@latest still vendors 5.0.7
-# and the fix is in 5.0.8, so nothing in this repository can raise it: the
-# images already install the newest npm. Remove this once npm ships the bump.
-# https://avd.aquasec.com/nvd/cve-2026-14257
-CVE-2026-14257
+# Both are pip's own vendored dependencies inside wolfi's py3-pip-wheel -- the
+# wheel used only to bootstrap a new virtualenv's pip, not code any agent runs.
+# They appear on every image that installs Python, including ones that never
+# install msgpack, which is how we know the source is the bundled wheel and not
+# our dependency tree (the runtime msgpack is 1.2.1). wolfi clears both when it
+# rebuilds py3-pip-wheel on a newer pip; the dependabot base-image bump brings
+# that. Remove these when it does.
+CVE-2025-47273        # setuptools path traversal, in the vendored wheel
+GHSA-6v7p-g79w-8964   # msgpack OOB read, in the vendored wheel

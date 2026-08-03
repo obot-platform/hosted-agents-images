@@ -5,7 +5,9 @@ template runs in. The templates themselves live in
 [hosted-agents-catalog](https://github.com/obot-platform/hosted-agents-catalog).
 
 Images are published to `ghcr.io/obot-platform/hosted-agents-images/<name>`,
-built for `linux/amd64` and `linux/arm64`, and signed with cosign. A push to
+built for `linux/amd64` and `linux/arm64`, and signed with cosign. All three
+build on Chainguard wolfi (glibc, continuously rebuilt CVE-free), pinned by
+digest and kept current by dependabot. A push to
 `main` publishes `:main`; a `v*` tag publishes that tag and moves `:latest`
 unless the tag is a release candidate.
 
@@ -130,6 +132,11 @@ build argument, so the pin and the published tag cannot disagree. To rebuild the
 same upstream version -- an entrypoint change, a base-image bump -- set
 `packaging: N` on that image; the tag becomes `version-N`, which is what lets it
 publish when the upstream version has not moved.
+
+Claude Code and Codex are installed from their official releases -- the native
+binary and the released musl binary respectively, not npm -- so the pinned
+version is baked in and a sandbox starts offline. Node 24 and Python 3.12 are
+present on every image as general tooling agents shell out to.
 
 A daily job (`check-upstream.yml`) compares each package against its registry
 and opens a pull request raising the version when a newer release appears.

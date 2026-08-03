@@ -96,9 +96,14 @@ jobs:
             [ "$(obot::public_path)" = "/agent-connect/smoke" ]
             [ "$(obot::answer instruction)" = "be brief" ]
             # A model is selected by protocol, and its credential is merged in
-            # from the secrets file rather than read from the config.
-            IFS=$"\t" read -r model base key < <(obot::model openai-responses)
-            [ "$model" = "smoke-model" ] && [ "$base" = "http://llm.invalid/v1" ] && [ "$key" = "smoke" ]
+            # from the secrets file rather than read from the config. cut splits
+            # the tab-separated result -- its default delimiter -- which avoids
+            # a $'"'"'\t'"'"' literal that shellcheck cannot track through the
+            # nested quoting here.
+            m=$(obot::model openai-responses)
+            [ "$(printf %s "$m" | cut -f1)" = "smoke-model" ]
+            [ "$(printf %s "$m" | cut -f2)" = "http://llm.invalid/v1" ]
+            [ "$(printf %s "$m" | cut -f3)" = "smoke" ]
             # A protocol the agent has no model for yields nothing, which is how
             # an image decides it cannot run.
             [ -z "$(obot::model anthropic)" ]

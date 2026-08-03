@@ -1,47 +1,52 @@
 # Claude Code, configured to run as an Obot hosted agent.
-FROM node:22-bookworm-slim@sha256:f32b81066cde10a75dbac96646099533316d94bac4150c55da1636e1f0ffdc46
+#
+# wolfi-base: minimal, continuously rebuilt to carry no known vulnerabilities,
+# and glibc -- which the Claude Code native binary requires. Pinned by digest;
+# dependabot keeps it current.
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:003627df3c1e1bba0c4116afcddb314aca9594ee2328c7e876a8081a6c988b2e
 
-# The Claude Code release to install. images.yaml is the source of truth; the
-# default here is only so a bare `docker build` works. The publish workflow
-# always passes the value from the manifest, so the two cannot drift.
+# The Claude Code release; images.yaml is the source of truth, this default is
+# only for a bare `docker build`.
 ARG AGENT_VERSION=2.1.220
 
-# git for the user's repository, jq for the agent config, ripgrep because
-# Claude Code shells out to it for search.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+# Node 24 (Active LTS) and Python 3.12 are here as general tooling: agents
+# commonly shell out to them, independent of what Claude Code itself needs.
+# git, jq, ripgrep, bash round out what the CLI and the entrypoint use.
+RUN apk add --no-cache \
+        bash \
         ca-certificates \
         curl \
         git \
         jq \
         less \
+        nodejs-24 \
+        npm \
+        python-3.12 \
+        py3.12-pip \
         ripgrep \
-    && rm -rf /var/lib/apt/lists/*
+        shadow
 
-# The npm that ships in the base image bundles its own dependencies, and
-# several carry fixable advisories. Upgrading it first replaces them.
-RUN npm install -g npm@12.0.2 \
-    && npm install -g "@anthropic-ai/claude-code@${AGENT_VERSION}" \
-    # The npm package is a launcher; the program itself is a native binary its
-    # installer fetches. Running that here puts it in the image, so a sandbox
-    # starts without reaching the network and runs the version pinned above.
-    # Left to first run it would download as the agent user, into a directory
-    # owned by root, in a pod that may have no egress.
-    && node /usr/local/lib/node_modules/@anthropic-ai/claude-code/install.cjs \
-    && npm cache clean --force
-
-# A non-root user: an agent runs model-directed commands, and root in the
-# container is a larger blast radius than this needs.
+# A non-root user: an agent runs model-directed commands, and root is a larger
+# blast radius than this needs. Claude Code is installed as that user, so its
+# launcher and binary land in the home directory it will actually run from.
 RUN useradd --create-home --shell /bin/bash agent \
     && mkdir -p /workspace \
     && chown agent:agent /workspace
-
-COPY lib/obot-agent.sh /usr/local/lib/obot-agent.sh
-COPY claude-code/entrypoint.sh /usr/local/bin/obot-entrypoint
-RUN chmod 0755 /usr/local/lib/obot-agent.sh /usr/local/bin/obot-entrypoint
-
 USER agent
+
+# The official installer, pinned to the version. It downloads the native binary
+# and sets up the launcher under ~/.local/bin -- no npm, and no launcher stub
+# that fetches the real binary on first run. Done at build time so a sandbox
+# starts offline at the pinned version.
+ENV PATH=/home/agent/.local/bin:$PATH
+RUN curl -fsSL https://claude.ai/install.sh | bash -s "${AGENT_VERSION}"
+
+COPY --chown=agent:agent lib/obot-agent.sh /usr/local/lib/obot-agent.sh
+COPY --chown=agent:agent claude-code/entrypoint.sh /usr/local/bin/obot-entrypoint
+USER root
+RUN chmod 0755 /usr/local/lib/obot-agent.sh /usr/local/bin/obot-entrypoint
+USER agent
+
 WORKDIR /workspace
 ENV OBOT_AGENT_WORKSPACE=/workspace
-
 ENTRYPOINT ["/usr/local/bin/obot-entrypoint"]
