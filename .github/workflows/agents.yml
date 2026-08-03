@@ -47,6 +47,9 @@ jobs:
       packages: write
       actions: read
       id-token: write
+      # Trivy uploads its results to code scanning, which this grants. It was
+      # dropped when the scan moved into this job from a separate one.
+      security-events: write
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
