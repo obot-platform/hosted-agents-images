@@ -29,7 +29,7 @@ jobs:
       # here rather than discovered in a cluster.
       - name: Lint shell
         run: |
-          docker run --rm -v "$PWD:/mnt" -w /mnt koalaman/shellcheck:stable \
+          docker run --rm -v "$PWD:/mnt" -w /mnt koalaman/shellcheck:v0.10.0 \
             --exclude=SC1091 \
             lib/obot-agent.sh */entrypoint.sh
 
@@ -94,6 +94,22 @@ jobs:
             [ -z "$(obot::model anthropic)" ]
             echo "configuration contract OK"
           '
+
+      # A pinned version is only pinned if the image really contains it. The
+      # Claude Code package is a launcher whose installer fetches the program,
+      # and an image that shipped only the launcher would download it at
+      # start-up instead -- as a non-root user, into a root-owned directory, in
+      # a pod that may have no egress. --network none is the check.
+      - name: Check the agents run offline at the pinned version
+        run: |
+          claude_version=$(docker run --rm --network none --entrypoint claude claude-code:pr-check --version)
+          echo "$claude_version"
+          case "$claude_version" in
+            2.1.220*) ;;
+            *) echo "claude reports an unexpected version" >&2; exit 1 ;;
+          esac
+          docker run --rm --network none --entrypoint codex codex:pr-check --version
+          docker run --rm --network none --entrypoint python adk:pr-check -c 'import google.adk; print(google.adk.__version__)'
 
       # bubblewrap is what Codex sandboxes model-directed commands in. Docker's
       # default seccomp profile blocks the namespace it needs, so this checks the

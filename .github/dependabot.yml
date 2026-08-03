@@ -1,0 +1,24 @@
+# Everything this repository builds from is pinned to an exact version or
+# digest, so that two builds of one commit produce the same image. Pinning
+# without a way to move forward is how an image quietly rots, which is what
+# these updates are for: the bump arrives as a pull request and goes through the
+# same build, scan and smoke test as any other change.
+version: 2
+updates:
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: pip
+    directory: /adk
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

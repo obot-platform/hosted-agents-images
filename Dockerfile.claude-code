@@ -1,5 +1,5 @@
 # Claude Code, configured to run as an Obot hosted agent.
-FROM node:22-bookworm-slim
+FROM node:22-bookworm-slim@sha256:f32b81066cde10a75dbac96646099533316d94bac4150c55da1636e1f0ffdc46
 
 # git for the user's repository, jq for the agent config, ripgrep because
 # Claude Code shells out to it for search.
@@ -15,8 +15,14 @@ RUN apt-get update \
 
 # The npm that ships in the base image bundles its own dependencies, and
 # several carry fixable advisories. Upgrading it first replaces them.
-RUN npm install -g npm@latest \
-    && npm install -g @anthropic-ai/claude-code@latest \
+RUN npm install -g npm@12.0.2 \
+    && npm install -g @anthropic-ai/claude-code@2.1.220 \
+    # The npm package is a launcher; the program itself is a native binary its
+    # installer fetches. Running that here puts it in the image, so a sandbox
+    # starts without reaching the network and runs the version pinned above.
+    # Left to first run it would download as the agent user, into a directory
+    # owned by root, in a pod that may have no egress.
+    && node /usr/local/lib/node_modules/@anthropic-ai/claude-code/install.cjs \
     && npm cache clean --force
 
 # A non-root user: an agent runs model-directed commands, and root in the
