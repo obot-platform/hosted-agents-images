@@ -146,7 +146,19 @@ obot::persist() {
   state="$(obot::state_dir)"
   dest="$state/$(basename "$target")"
 
-  [ -L "$target" ] && return 0
+  # Already linked by an earlier boot. The link is only good if what it points
+  # at is still there: a pool volume can be replaced, or the link can outlive
+  # the state it was made for, and a directory symlink left dangling fails every
+  # write through it with a bare "Permission denied" that names the link rather
+  # than the missing target. Recreating the directory is safe -- there is no
+  # content to lose, since the thing it pointed at is gone.
+  if [ -L "$target" ]; then
+    if [ ! -e "$target" ] && [ "$kind" = dir ]; then
+      obot::log "$target points at missing state; recreating $dest"
+      mkdir -p "$dest"
+    fi
+    return 0
+  fi
 
   if [ ! -e "$dest" ]; then
     if [ -e "$target" ]; then
