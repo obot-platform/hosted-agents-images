@@ -34,6 +34,16 @@ RUN useradd --create-home --shell /bin/bash agent \
     && mkdir -p /workspace \
     && chown -R agent:agent /workspace /app
 
+# `adk web` writes its per-instance runtime config -- the URL prefix the
+# single-page UI reads to find its own API -- into a file inside its packaged
+# web assets. That directory belongs to root, and the sandbox runs as agent, so
+# the write fails and the UI is served without knowing the prefix it is mounted
+# under. Handing the directory to agent lets ADK write it. The path is resolved
+# from the package rather than hard-coded, so an ADK layout change does not
+# leave a stale chown silently doing nothing.
+RUN cfg="$(python -c 'import os, google.adk.cli as c; print(os.path.join(os.path.dirname(c.__file__), "browser", "assets", "config"))')" \
+    && chown -R agent:agent "$cfg"
+
 USER agent
 ENV OBOT_AGENT_WORKSPACE=/workspace \
     PYTHONUNBUFFERED=1
