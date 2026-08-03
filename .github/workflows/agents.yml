@@ -24,7 +24,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build matrix from images.yaml
         id: set-matrix
         run: |
@@ -61,7 +61,7 @@ jobs:
       HAS_DISPATCH_PAT: ${{ secrets.DISPATCH_PAT != '' }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # A tag is immutable once published, so a build only runs when its tag
       # does not already exist. Changing shared code without an upstream bump
