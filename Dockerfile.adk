@@ -1,0 +1,38 @@
+# A Google Agent Development Kit chatbot, served over HTTP for Obot's port
+# option.
+FROM python:3.12-slim-bookworm
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        git \
+        jq \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY adk/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+COPY lib/obot-agent.sh /usr/local/lib/obot-agent.sh
+COPY adk/entrypoint.sh /usr/local/bin/obot-entrypoint
+RUN chmod 0755 /usr/local/lib/obot-agent.sh /usr/local/bin/obot-entrypoint
+
+RUN useradd --create-home --shell /bin/bash agent \
+    && mkdir -p /workspace \
+    && chown -R agent:agent /workspace /app
+
+# `adk web` rewrites a runtime config inside its own package at start-up. The
+# path is resolved rather than hard-coded so it survives a Python or ADK
+# version bump; without this the server still serves, but logs a permission
+# error on every boot.
+RUN set -eux; \
+    config_dir="$(python -c 'import os, google.adk.cli as c; print(os.path.join(os.path.dirname(c.__file__), "browser", "assets", "config"))')"; \
+    mkdir -p "$config_dir"; \
+    chown -R agent:agent "$config_dir"
+
+USER agent
+ENV OBOT_AGENT_WORKSPACE=/workspace \
+    PYTHONUNBUFFERED=1
+
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/obot-entrypoint"]

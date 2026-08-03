@@ -1,0 +1,126 @@
+name: Build
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate Dockerfiles
+        run: |
+          for dockerfile in Dockerfile.*; do
+            docker buildx build --check --file "$dockerfile" .
+          done
+
+      # The entrypoints are the whole of an agent's start-up: they read Obot's
+      # configuration and translate it for the tool. A syntax error in one is a
+      # sandbox that crash-loops with no useful message, so they are checked
+      # here rather than discovered in a cluster.
+      - name: Lint shell
+        run: |
+          docker run --rm -v "$PWD:/mnt" -w /mnt koalaman/shellcheck:stable \
+            --exclude=SC1091 \
+            lib/obot-agent.sh */entrypoint.sh
+
+      - name: Build images
+        run: |
+          for dockerfile in Dockerfile.*; do
+            name="${dockerfile#Dockerfile.}"
+            docker build --pull --file "$dockerfile" --tag "$name:pr-check" .
+          done
+
+      # Each image has to boot from a configuration it has never seen before.
+      # The check is that it reads one and reports what it found, not that it
+      # reaches a model: there is no Obot here to reach.
+      - name: Smoke test the configuration contract
+        shell: bash
+        run: |
+          set -o pipefail
+          config="$(mktemp -d)"
+          cat >"$config/agent.json" <<'JSON'
+          {
+            "version": "v1",
+            "instance": {"id": "smoke", "userID": "1", "name": "smoke"},
+            "secretsFile": "/etc/obot/secrets.json",
+            "workspace": "/workspace",
+            "listenPort": 8000,
+            "publicPath": "/agent-connect/smoke",
+            "mcpServers": [
+              {"id": "ms1smoke", "name": "ms1smoke", "url": "http://mcp.invalid/mcp-connect/ms1smoke",
+               "transport": "streamable-http"}
+            ],
+            "models": [
+              {"id": "m1smoke", "model": "smoke-model", "provider": "openai-model-provider",
+               "apis": ["openai-responses", "openai-chat-completions"],
+               "baseURL": "http://llm.invalid/v1", "default": true}
+            ],
+            "answers": {"instruction": "be brief"}
+          }
+          JSON
+          cat >"$config/secrets.json" <<'JSON'
+          {"version": "v1",
+           "mcpServers": {"ms1smoke": {"headers": {"Authorization": "Bearer smoke"}}},
+           "modelProviders": {"openai-model-provider": {"apiKey": "smoke"}}}
+          JSON
+          chmod -R a+rX "$config"
+
+          # The shared library is the contract every image reads. Exercising it
+          # directly proves the merge and the accessors, without needing a model.
+          docker run --rm -v "$config:/etc/obot:ro" --entrypoint bash claude-code:pr-check -c '
+            set -euo pipefail
+            source /usr/local/lib/obot-agent.sh
+            obot::require_config
+            [ "$(obot::workspace)" = "/workspace" ]
+            [ "$(obot::listen_port)" = "8000" ]
+            [ "$(obot::public_path)" = "/agent-connect/smoke" ]
+            [ "$(obot::answer instruction)" = "be brief" ]
+            # A model is selected by protocol, and its credential is merged in
+            # from the secrets file rather than read from the config.
+            IFS=$"\t" read -r model base key < <(obot::model openai-responses)
+            [ "$model" = "smoke-model" ] && [ "$base" = "http://llm.invalid/v1" ] && [ "$key" = "smoke" ]
+            # A protocol the agent has no model for yields nothing, which is how
+            # an image decides it cannot run.
+            [ -z "$(obot::model anthropic)" ]
+            echo "configuration contract OK"
+          '
+
+      # bubblewrap is what Codex sandboxes model-directed commands in. Docker's
+      # default seccomp profile blocks the namespace it needs, so this checks the
+      # binary is installed; that it can create a sandbox is a property of the
+      # cluster, where seccomp is unconfined.
+      - name: Check Codex ships its sandbox
+        run: docker run --rm --entrypoint bwrap codex:pr-check --version
+
+      # Not `npm audit`: these images install their CLI globally, which leaves
+      # no lockfile for it to read. Trivy inspects the built image instead,
+      # which covers the OS packages and the Python dependencies too.
+      #
+      # Unfixed findings are ignored: a base-image CVE with no available patch
+      # is not something a pull request can act on, and blocking on it would
+      # teach everyone to ignore this step. The published images are scanned
+      # again after release, where everything is reported rather than filtered.
+      - name: Scan images for fixable vulnerabilities
+        run: |
+          for image in claude-code codex adk; do
+            docker run --rm \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$PWD:/workspace" -w /workspace \
+              aquasec/trivy:0.58.1 image \
+                --ignorefile .trivyignore \
+                --severity HIGH,CRITICAL \
+                --ignore-unfixed \
+                --exit-code 1 \
+                --scanners vuln \
+                "$image:pr-check"
+          done

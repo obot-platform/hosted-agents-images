@@ -1,0 +1,8 @@
+# Entries here must say why the finding does not apply, with a reference.
+# An unexplained suppression is indistinguishable from an unfixed vulnerability.
+
+# brace-expansion, bundled inside npm itself. npm@latest still vendors 5.0.7
+# and the fix is in 5.0.8, so nothing in this repository can raise it: the
+# images already install the newest npm. Remove this once npm ships the bump.
+# https://avd.aquasec.com/nvd/cve-2026-14257
+CVE-2026-14257

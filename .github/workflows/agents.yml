@@ -1,0 +1,125 @@
+name: Build and Push Agent Images
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+    paths:
+      - Dockerfile.*
+      - lib/**
+      - claude-code/**
+      - codex/**
+      - adk/**
+
+jobs:
+  docker-build:
+    permissions:
+      contents: read
+      packages: write
+      actions: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image-identifier:
+          - claude-code
+          - codex
+          - adk
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        id: build-and-push
+        with:
+          context: .
+          push: true
+          pull: true
+          file: Dockerfile.${{ matrix.image-identifier }}
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository }}/${{ matrix.image-identifier }}:${{ github.ref_name }}
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.1.1
+        with:
+          cosign-release: "v3.0.5"
+      - name: Check install!
+        run: cosign version
+      - name: Sign Images
+        env:
+          DIGEST: ${{ steps.build-and-push.outputs.digest }}
+          TAGS: |
+            ghcr.io/${{ github.repository }}/${{ matrix.image-identifier }}:${{ github.ref_name }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
+      - name: Setup crane
+        uses: imjasonh/setup-crane@v0.4
+      - name: Copy image to latest tag
+        if: ${{ github.ref_type == 'tag' && !contains(github.ref_name, '-rc') }}
+        run: |
+          crane tag ghcr.io/${{ github.repository }}/${{ matrix.image-identifier }}:${{ github.ref_name }} latest
+
+      # Tell the catalog which tag to point its harnesses at, so a release does
+      # not depend on someone remembering to edit YAML in another repository.
+      - name: Notify the catalog of the new tag
+        if: ${{ github.ref_type == 'tag' && !contains(github.ref_name, '-rc') }}
+        env:
+          GH_TOKEN: ${{ secrets.CATALOG_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "No CATALOG_DISPATCH_TOKEN configured; skipping catalog notification." >&2
+            exit 0
+          fi
+          gh api repos/${{ github.repository_owner }}/hosted-agents-catalog/dispatches \
+            --field event_type=update-image-tag \
+            --field "client_payload[image_name]=ghcr.io/${{ github.repository }}/${{ matrix.image-identifier }}" \
+            --field "client_payload[new_tag]=${{ github.ref_name }}"
+
+  trivy-scan:
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    needs: docker-build
+    strategy:
+      fail-fast: false
+      matrix:
+        image-identifier:
+          - claude-code
+          - codex
+          - adk
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}/${{ matrix.image-identifier }}:${{ github.ref_name }}
+          skip-dirs: "**/venv"
+          format: "sarif"
+          output: "trivy-results-${{ matrix.image-identifier }}.sarif"
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results-${{ matrix.image-identifier }}.sarif
+          category: trivy-${{ matrix.image-identifier }}

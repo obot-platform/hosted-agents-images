@@ -1,0 +1,36 @@
+# Claude Code, configured to run as an Obot hosted agent.
+FROM node:22-bookworm-slim
+
+# git for the user's repository, jq for the agent config, ripgrep because
+# Claude Code shells out to it for search.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        git \
+        jq \
+        less \
+        ripgrep \
+    && rm -rf /var/lib/apt/lists/*
+
+# The npm that ships in the base image bundles its own dependencies, and
+# several carry fixable advisories. Upgrading it first replaces them.
+RUN npm install -g npm@latest \
+    && npm install -g @anthropic-ai/claude-code@latest \
+    && npm cache clean --force
+
+# A non-root user: an agent runs model-directed commands, and root in the
+# container is a larger blast radius than this needs.
+RUN useradd --create-home --shell /bin/bash agent \
+    && mkdir -p /workspace \
+    && chown agent:agent /workspace
+
+COPY lib/obot-agent.sh /usr/local/lib/obot-agent.sh
+COPY claude-code/entrypoint.sh /usr/local/bin/obot-entrypoint
+RUN chmod 0755 /usr/local/lib/obot-agent.sh /usr/local/bin/obot-entrypoint
+
+USER agent
+WORKDIR /workspace
+ENV OBOT_AGENT_WORKSPACE=/workspace
+
+ENTRYPOINT ["/usr/local/bin/obot-entrypoint"]

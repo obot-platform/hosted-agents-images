@@ -1,0 +1,5 @@
+# The mcp extra, not a bare mcp pin: ADK declares the range it works with
+# (currently >=1.24,<2) and a pin of our own drifts out of it. Installing mcp
+# directly picked up 2.0.0, which no longer has the symbols ADK imports.
+google-adk[mcp]>=1.0.0
+litellm>=1.60.0
