@@ -82,7 +82,7 @@ jobs:
 
       - name: Open a pull request
         if: ${{ steps.check.outputs.updates != '[]' }}
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           branch: check-upstream/bumps
           title: "chore: update agent package versions"
