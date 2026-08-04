@@ -113,7 +113,7 @@ jobs:
 
       - name: Install Cosign
         if: steps.check.outputs.exists == 'false'
-        uses: sigstore/cosign-installer@v4.1.1
+        uses: sigstore/cosign-installer@v4.1.2
         with:
           cosign-release: "v3.0.5"
       - name: Sign the image
