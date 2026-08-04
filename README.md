@@ -38,7 +38,8 @@ translating it into whatever its own tool expects.
 | `/etc/obot/credential` | `0440` | The agent's own API key, for anything the config does not describe. |
 
 Every endpoint in the config is an **absolute URL**. An image joins nothing
-together and needs no knowledge of Obot's address or routes:
+together and needs no knowledge of Obot's address or routes for anything the
+config describes:
 
 ```json
 {"mcpServers": [{"id": "ms1github",
@@ -61,6 +62,14 @@ specific models yields those. Exactly one carries `"default": true` — whatever
 `obot://llm` points at, or the first listed if no alias is bound — so an image
 that wants a single model always has an answer. It is a hint, not a
 restriction: the agent is authorized for every model in the list.
+
+**Calling Obot directly.** For the rest — anything the config does not describe
+— `obotURL` is Obot's own address and `/etc/obot/credential` is the key to use
+against it, read with `obot::obot_url`. This is *not* the host in `publicURL`:
+that is the address a browser reaches the agent on, and is commonly not routable
+from inside the cluster. Answering "where is Obot" with the browser's answer is
+what leaves a sandbox unable to reach its own models. An image that only uses
+the MCP servers, models and skills it was given never needs this.
 
 **Why two files.** The configuration is world-readable so it can be inspected,
 logged or copied freely; only the credentials are protected. The secrets file is

@@ -23,6 +23,7 @@
 #    "source":{"url":…,"ref":…,"subdir":…},
 #    "listenPort":8000,
 #    "publicPath":"/agent-connect/<instance id>", "publicURL":"https://…/agent-connect/<id>",
+#    "obotURL":"http://obot.obot-system.svc.cluster.local",
 #    "mcpServers":[{"id":…,"name":…,"url":…,"transport":…,"headers":{…}}],
 #    "models":[{"id":…,"model":…,"apis":["anthropic"|"openai-responses"|"openai-chat-completions"],
 #                "provider":…,"baseURL":…,"apiKey":…,"default":true}],
@@ -90,6 +91,18 @@ obot::listen_port() { obot::config '.listenPort // empty'; }
 # which is not where anyone reaches it.
 obot::public_path() { obot::config '.publicPath // empty'; }
 obot::public_url() { obot::config '.publicURL // empty'; }
+
+# obot::obot_url is Obot itself, at the address this sandbox reaches it on.
+#
+# Nothing described by the configuration needs it: every endpoint above is
+# already absolute. It is for what the configuration does not describe -- an
+# agent calling Obot's own API, authenticating with /etc/obot/credential.
+#
+# It is deliberately not obot::public_url's host. That one is the address a
+# browser uses, and is commonly not routable from inside the cluster; answering
+# "where is Obot" with it is what leaves a sandbox unable to reach its own
+# models. Empty when Obot did not supply one.
+obot::obot_url() { obot::config '.obotURL // empty'; }
 # shellcheck disable=SC2016  # $k is a jq variable, bound below with --arg.
 obot::answer() { obot::config '.answers[$k] // empty' --arg k "$1"; }
 
