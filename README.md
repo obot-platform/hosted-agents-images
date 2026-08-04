@@ -47,7 +47,7 @@ config describes:
                  "transport": "streamable-http"}],
  "models":     [{"id": "m1sonnet", "model": "claude-sonnet-4-5",
                  "api": "anthropic",
-                 "baseURL": "https://obot.example.com/api/llm-proxy/anthropic/v1",
+                 "baseURL": "https://obot.example.com/api/llm-proxy/anthropic",
                  "default": true}]}
 ```
 
@@ -55,6 +55,14 @@ config describes:
 OpenAI-compatible one are different clients, and nothing in a URL says which is
 which. `obot::model anthropic` returns the model, base URL and key for that
 protocol, or nothing if the agent has no such model.
+
+**`baseURL` carries no API version**, because the version belongs to the
+protocol a client speaks rather than to the routing. An Anthropic client appends
+`/v1/messages` to it; an OpenAI one treats `/v1` as part of its base and appends
+`/responses`. Naming a version in the config would pick one of those conventions
+for every image, and could not express a provider moving to `/v2`. So an image
+composes the path its own client expects -- `codex` adds `/v1`, `claude-code`
+uses the value as it is.
 
 **Every model the agent may use is listed**, not just one. A template granting
 `"*"` yields the installation's whole catalogue; a template naming an alias or

@@ -28,6 +28,17 @@ if IFS=$'\t' read -r model base_url api_key < <(obot::model openai-responses); t
   # The key goes through the environment rather than into the file, so the
   # credential is not left on disk in a config Codex may print.
   export OPENAI_API_KEY="$api_key"
+
+  # Codex treats base_url as an OpenAI-style base and appends only /responses,
+  # so it wants the /v1 that the config leaves off -- the config reports the
+  # root of Obot's proxy, and which version a client asks for belongs to the
+  # protocol that client speaks. Conditional so the image also works against an
+  # Obot old enough to still report the version itself.
+  case "$base_url" in
+    */v1) ;;
+    *) base_url="${base_url%/}/v1" ;;
+  esac
+
   {
     echo 'model_provider = "obot"'
     printf 'model = "%s"\n' "$model"
