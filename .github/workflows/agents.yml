@@ -128,7 +128,7 @@ jobs:
         uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ghcr.io/${{ github.repository }}/${{ matrix.name }}:${{ matrix.tag }}
-          trivyignores: .trivyignore
+          trivyignores: .trivyignore.yaml
           format: "sarif"
           output: "trivy-${{ matrix.name }}.sarif"
       - name: Upload SARIF

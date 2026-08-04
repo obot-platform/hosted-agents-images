@@ -1,0 +1,59 @@
+# Entries here must say why the finding does not apply, with a reference.
+# An unexplained suppression is indistinguishable from an unfixed vulnerability.
+#
+# Every entry carries an expired_at. A suppression that outlives its reason
+# should fail the build rather than quietly persist, so the date is a deadline
+# for re-checking the claim, not a guess at when upstream will ship.
+#
+# Trivy still treats this YAML form as experimental and will not discover it on
+# its own -- both workflows name it via --ignorefile / trivyignores. Only one
+# ignore file is ever read, so every suppression has to live here.
+vulnerabilities:
+  # Both are pip's own vendored dependencies inside wolfi's py3-pip-wheel -- the
+  # wheel used only to bootstrap a new virtualenv's pip, not code any agent runs.
+  - id: CVE-2025-47273
+    statement: >-
+      setuptools path traversal, in the wheel pip vendors to bootstrap itself.
+      wolfi clears it when it rebuilds py3-pip-wheel on a newer pip; the
+      dependabot base-image bump brings that.
+    expired_at: 2026-11-01
+
+  - id: GHSA-6v7p-g79w-8964
+    statement: >-
+      msgpack out-of-bounds read, in the same vendored bootstrap wheel. It
+      appears on every image that installs Python, including ones that never
+      install msgpack, which is how we know the source is the bundled wheel and
+      not our dependency tree -- the runtime msgpack is 1.2.1.
+    expired_at: 2026-11-01
+
+  - id: CVE-2026-69152
+    purls:
+      - "pkg:npm/brace-expansion"
+    statement: >-
+      Denial of service in the brace-expansion vendored inside wolfi's npm
+      package, not in Claude Code, Codex, or anything we install. Reaching it
+      means an agent ran npm against attacker-controlled brace patterns, which
+      crashes only that agent's own sandbox. Disclosed 2026-08-03; upstream
+      fixed it in 5.0.9 on 2026-07-30, and no npm release carries that yet --
+      npm 12.0.2 on npmjs still bundles 5.0.7. wolfi pins this copy explicitly
+      (npm.yaml: `fix_pkg node_modules/brace-expansion 5.0.8`) and has moved it
+      twice in three weeks, to 5.0.7 on 2026-07-17 and 5.0.8 on 2026-07-27,
+      each within days of the advisory. Remove this once their 5.0.9 rebuild
+      lands.
+    expired_at: 2026-08-10
+
+  - id: CVE-2026-69192
+    purls:
+      - "pkg:npm/ip-address"
+    statement: >-
+      Parser differential in the ip-address vendored inside wolfi's npm package,
+      reached through socks-proxy-agent. Address4 reads a leading-zero octet as
+      decimal where resolvers read it as octal, so an application that asks it
+      whether an address is private can be talked into an SSRF. npm only parses
+      the SOCKS proxy address from the operator's own npm config with it, and
+      makes no trust-boundary decision on the answer, so there is no attacker
+      input on that path. Disclosed 2026-08-03; upstream fixed it in 10.3.1 on
+      2026-07-25, and npm 12.0.2 still bundles 10.2.0. Same wolfi fix_pkg list
+      as CVE-2026-69152 above -- eleven vendored pins today, this will be the
+      twelfth. Remove once their rebuild lands.
+    expired_at: 2026-08-10
