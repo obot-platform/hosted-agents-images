@@ -15,7 +15,13 @@ obot::require_config
 # Claude Code speaks the Anthropic Messages API, so it needs a model Obot has
 # resolved to that protocol; an OpenAI-compatible endpoint would not work here.
 if IFS=$'\t' read -r model base_url api_key < <(obot::model anthropic); then
-  export ANTHROPIC_BASE_URL="$base_url"
+  # Claude Code builds "$ANTHROPIC_BASE_URL/v1/messages", so it wants the API
+  # root -- while the config reports the endpoint a client posts to, which
+  # already ends in /v1. Exported unchanged the two compose into /v1/v1/messages
+  # and every request 404s. Claude Code reports that as a model it cannot
+  # access, which points the reader at model access rather than at a URL.
+  anthropic_base_url="${base_url%/}"
+  export ANTHROPIC_BASE_URL="${anthropic_base_url%/v1}"
   export ANTHROPIC_AUTH_TOKEN="$api_key"
   export ANTHROPIC_MODEL="$model"
   obot::log "using model $model"
