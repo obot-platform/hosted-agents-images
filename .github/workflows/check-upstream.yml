@@ -66,8 +66,24 @@ jobs:
           import re, sys
           name, to = sys.argv[1], sys.argv[2]
           text = open("images.yaml").read()
-          block = re.compile(rf"(- name: {re.escape(name)}\n(?:.*\n)*?    version: )\S+(\n)(    packaging: \S+\n)?")
-          text = block.sub(rf"\g<1>{to}\g<2>", text, count=1)
+
+          # Scope to this image's block -- from its `- name:` to the next one, or
+          # the end of the file -- then edit inside it. Matching the block rather
+          # than a version-then-packaging sequence is what makes clearing the
+          # suffix independent of where the key sits: written above `version` it
+          # used to survive the bump, and the image would publish as
+          # `<new version>-<old packaging>`, claiming a repackage of a release
+          # that had never been packaged at all. That tag is still unique, so it
+          # builds and ships, and nothing complains.
+          block = re.compile(rf"(  - name: {re.escape(name)}\n(?:(?!  - name: ).*\n)*)")
+
+          def bump(m):
+              b = m.group(1)
+              b = re.sub(r"(    version: )\S+", rf"\g<1>{to}", b, count=1)
+              b = re.sub(r"    packaging: \S+\n", "", b)
+              return b
+
+          text = block.sub(bump, text, count=1)
           open("images.yaml", "w").write(text)
           PY
           done
