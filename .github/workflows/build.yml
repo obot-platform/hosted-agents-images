@@ -148,7 +148,7 @@ jobs:
               -v /var/run/docker.sock:/var/run/docker.sock \
               -v "$PWD:/workspace" -w /workspace \
               aquasec/trivy:0.58.1 image \
-                --ignorefile .trivyignore \
+                --ignorefile .trivyignore.yaml \
                 --severity HIGH,CRITICAL \
                 --ignore-unfixed \
                 --exit-code 1 \
