@@ -110,6 +110,61 @@ jobs:
             echo "configuration contract OK"
           '
 
+      # The contract test above stops at the accessor, which returns the
+      # endpoint a client posts to. Each image still has to translate that into
+      # whatever its CLI expects, and nothing observed that translation -- which
+      # is how a base URL keeping the config's trailing /v1 shipped. Claude Code
+      # appends "/v1/messages" itself, so it requested /v1/v1/messages and every
+      # model call 404d, reported to the user as a model they cannot access.
+      #
+      # Running the entrypoint is the only way to see what it exported, so a
+      # stub on PATH stands in for the CLI it execs.
+      - name: Check Claude Code derives its API root from the model endpoint
+        shell: bash
+        run: |
+          set -o pipefail
+          config="$(mktemp -d)"
+          cat >"$config/agent.json" <<'JSON'
+          {
+            "version": "v1",
+            "instance": {"id": "smoke", "userID": "1", "name": "smoke"},
+            "secretsFile": "/etc/obot/secrets.json",
+            "workspace": "/workspace",
+            "models": [
+              {"id": "m1smoke", "model": "smoke-model", "provider": "anthropic-model-provider",
+               "apis": ["anthropic"], "baseURL": "http://llm.invalid/v1", "default": true}
+            ]
+          }
+          JSON
+          cat >"$config/secrets.json" <<'JSON'
+          {"version": "v1",
+           "modelProviders": {"anthropic-model-provider": {"apiKey": "smoke"}}}
+          JSON
+          chmod -R a+rX "$config"
+
+          # Written by the entrypoint as the agent user, so it cannot be read-only.
+          workspace="$(mktemp -d)"
+          chmod 777 "$workspace"
+
+          stub="$(mktemp -d)"
+          chmod 755 "$stub"
+          printf '#!/bin/sh\nprintf "OBOT_TEST_BASE_URL=%%s\\n" "$ANTHROPIC_BASE_URL"\n' >"$stub/claude"
+          chmod 755 "$stub/claude"
+
+          out=$(docker run --rm \
+            -v "$config:/etc/obot:ro" -v "$workspace:/workspace" -v "$stub:/stub:ro" \
+            --entrypoint bash claude-code:pr-check \
+            -c 'export PATH=/stub:$PATH; exec /usr/local/bin/obot-entrypoint')
+          echo "$out"
+
+          base=${out##*OBOT_TEST_BASE_URL=}
+          base=${base%%$'\n'*}
+          if [ "$base" != "http://llm.invalid" ]; then
+            echo "ANTHROPIC_BASE_URL is $base; Claude Code appends /v1/messages to it" >&2
+            exit 1
+          fi
+          echo "API root OK"
+
       # A pinned version is only pinned if the image really contains it. The
       # Claude Code package is a launcher whose installer fetches the program,
       # and an image that shipped only the launcher would download it at
