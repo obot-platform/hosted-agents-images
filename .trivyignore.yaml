@@ -9,13 +9,27 @@
 # its own -- both workflows name it via --ignorefile / trivyignores. Only one
 # ignore file is ever read, so every suppression has to live here.
 vulnerabilities:
-  # Both are pip's own vendored dependencies inside wolfi's py3-pip-wheel -- the
-  # wheel used only to bootstrap a new virtualenv's pip, not code any agent runs.
+  # Both are pip's own vendored dependencies, inside the pip wheel that
+  # py3-pip-wheel ships to bootstrap a new virtualenv -- not code any agent
+  # runs. The installed runtime versions are already fixed: setuptools 83.0.0
+  # and msgpack 1.2.1 in site-packages. Only the copies inside
+  # /usr/share/python-wheels/pip-*.whl are old.
+  #
+  # These two do NOT clear on a wolfi rebuild, and the expiry dates below are
+  # not a prediction that they will. py3-pip-wheel is already current at
+  # 26.2-r0 and the findings survive it, because pip 26.2's own
+  # _vendor/vendor.txt still pins `msgpack==1.1.2` and `setuptools==70.3.0`.
+  # The trigger is pip re-vendoring upstream, which is pip's release decision
+  # and has no schedule. So the date is a calendar reminder to re-check that
+  # claim against a current pip, nothing more -- deliberately quarterly,
+  # because a shorter one would only fail the build over news that has not
+  # arrived.
   - id: CVE-2025-47273
     statement: >-
-      setuptools path traversal, in the wheel pip vendors to bootstrap itself.
-      wolfi clears it when it rebuilds py3-pip-wheel on a newer pip; the
-      dependabot base-image bump brings that.
+      setuptools path traversal, in the copy pip vendors into its bootstrap
+      wheel. Reaching it means running that vendored setuptools against a
+      hostile package index, which nothing here does -- the runtime setuptools
+      is 83.0.0. Clears when pip re-vendors, not on a base-image bump.
     expired_at: 2026-11-01
 
   - id: GHSA-6v7p-g79w-8964
@@ -23,7 +37,8 @@ vulnerabilities:
       msgpack out-of-bounds read, in the same vendored bootstrap wheel. It
       appears on every image that installs Python, including ones that never
       install msgpack, which is how we know the source is the bundled wheel and
-      not our dependency tree -- the runtime msgpack is 1.2.1.
+      not our dependency tree -- the runtime msgpack is 1.2.1. Clears when pip
+      re-vendors, not on a base-image bump.
     expired_at: 2026-11-01
 
   - id: CVE-2026-69152
