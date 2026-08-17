@@ -3,7 +3,7 @@
 # at; this image is only the runtime.
 #
 # wolfi-base for the reasons in Dockerfile.claude-code.
-FROM cgr.dev/chainguard/wolfi-base:latest@sha256:003627df3c1e1bba0c4116afcddb314aca9594ee2328c7e876a8081a6c988b2e
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:0a8fd427de5882aed77471b0a432c3675eda6b6a0ae952b5d640b46da628cdbe
 
 # The google-adk release; see Dockerfile.claude-code for how this is set. The
 # mcp extra rather than a bare mcp pin, because ADK declares the range it works

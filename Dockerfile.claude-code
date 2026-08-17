@@ -3,7 +3,7 @@
 # wolfi-base: minimal, continuously rebuilt to carry no known vulnerabilities,
 # and glibc -- which the Claude Code native binary requires. Pinned by digest;
 # dependabot keeps it current.
-FROM cgr.dev/chainguard/wolfi-base:latest@sha256:003627df3c1e1bba0c4116afcddb314aca9594ee2328c7e876a8081a6c988b2e
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:0a8fd427de5882aed77471b0a432c3675eda6b6a0ae952b5d640b46da628cdbe
 
 # The Claude Code release; images.yaml is the source of truth, this default is
 # only for a bare `docker build`.
