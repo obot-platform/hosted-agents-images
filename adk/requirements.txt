@@ -1,5 +1,5 @@
 # google-adk is installed from images.yaml via a build argument, so it is not
 # listed here. These are the pins dependabot keeps current.
-litellm==1.95.0
+litellm==1.96.2
 # Pulled transitively; pinned past GHSA-6v7p-g79w-8964 (out-of-bounds read).
 msgpack==1.2.1
