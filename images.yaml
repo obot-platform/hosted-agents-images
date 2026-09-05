@@ -12,17 +12,14 @@ images:
   - name: claude-code
     registry: npm
     package: "@anthropic-ai/claude-code"
-    version: 2.1.220
-    packaging: 1
+    version: 2.1.261
 
   - name: codex
     registry: npm
     package: "@openai/codex"
-    version: 0.146.0
-    packaging: 1
+    version: 0.153.4
 
   - name: adk
     registry: pypi
     package: google-adk
-    version: 2.6.1
-    packaging: 1
+    version: 2.8.0
